@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализ резюме</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans">
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white">Анализ резюме</h1>
+            <p class="text-lg text-gray-400 mt-2">Загрузите резюме кандидата и выберите вакансию для детального сравнения</p>
+        </header>
+
+        <div class="max-w-2xl mx-auto bg-gray-800 p-6 rounded-lg border border-gray-700">
+            <form id="resume-form" enctype="multipart/form-data">
+                <div class="mb-4">
+                    <label for="resume-file" class="block text-lg font-medium text-gray-300 mb-2">Загрузить резюме (txt, pdf, doc, docx)</label>
+                    <input type="file" id="resume-file" accept=".txt,.pdf,.doc,.docx" required class="block w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="resume-vacancy-key" class="block text-lg font-medium text-gray-300 mb-2">Выберите вакансию</label>
+                    <select id="resume-vacancy-key" required class="block w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">-- Загрузка вакансий --</option>
+                    </select>
+                </div>
+                
+                <button type="submit" id="analyze-resume-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">
+                    Анализировать резюме
+                </button>
+                
+                <div id="loading-indicator" class="hidden mt-4 flex items-center justify-center">
+                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-3"></div>
+                    <span class="text-blue-300">Анализ в процессе... Это может занять 10-30 секунд.</span>
+                </div>
+            </form>
+            
+            <div id="resume-result" class="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-600 hidden">
+                <!-- Результат анализа будет здесь -->
+            </div>
+            
+            <div id="resume-error" class="mt-6 p-4 bg-red-900 rounded-lg border border-red-600 hidden">
+                <!-- Ошибки будут здесь -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('resume-form');
+        const fileInput = document.getElementById('resume-file');
+        const vacancySelect = document.getElementById('resume-vacancy-key');
+        const analyzeBtn = document.getElementById('analyze-resume-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const resultDiv = document.getElementById('resume-result');
+        const errorDiv = document.getElementById('resume-error');
+
+        // Загрузка списка вакансий
+        async function loadVacancies() {
+            try {
+                const response = await fetch('/api/vacancies');
+                const vacancies = await response.json();
+                vacancySelect.innerHTML = '<option value="">-- Выберите вакансию --</option>';
+                vacancies.forEach(v => {
+                    const option = document.createElement('option');
+                    option.value = v.key;
+                    option.textContent = `${v.title} (${v.key})`;
+                    vacancySelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Ошибка загрузки вакансий:', error);
+                vacancySelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+            }
+        }
+
+        // Обработчик формы
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const file = fileInput.files[0];
+            const vacancyKey = vacancySelect.value;
+            
+            if (!file || !vacancyKey) {
+                showError('Выберите файл резюме и вакансию.');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('vacancy_key', vacancyKey);
+            
+            // Показываем индикатор загрузки
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = 'Анализирую...';
+            loadingIndicator.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/resume/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Развёрнутый вывод с цветами
+                    resultDiv.innerHTML = `
+                        <h4 class="text-lg font-bold text-white mb-3">Результат анализа резюме</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="mb-2"><strong>Процент соответствия:</strong> <span class="text-green-400 text-lg">${result.match_percentage}%</span></p>
+                                <p class="mb-2"><strong>Ключевые навыки из резюме:</strong> <span class="text-blue-400">${Array.isArray(result.key_skills_from_resume) ? result.key_skills_from_resume.join(', ') : 'Не указано'}</span></p>
+                                <p class="mb-2"><strong>Стаж и образование:</strong> ${result.experience_summary}</p>
+                                <p class="mb-2"><strong>Подтверждённые навыки:</strong> ${result.confirmed_skills}</p>
+                                <p class="mb-2"><strong>Неподтверждённые навыки:</strong> <span class="text-yellow-400">${result.unconfirmed_skills}</span></p>
+                            </div>
+                            <div>
+                                <p class="mb-2"><strong>Красные флаги:</strong> <span class="text-red-400">${Array.isArray(result.red_flags) ? result.red_flags.join(', ') : 'Нет'}</span></p>
+                                <p class="mb-2"><strong>Разбивка по компетенциям:</strong> ${result.competencies_breakdown}</p>
+                                <p class="mb-2"><strong>Рекомендация:</strong> <span class="text-${result.recommendation === 'на следующий этап' ? 'green' : result.recommendation === 'отказ' ? 'red' : 'yellow'}-400 font-bold">${result.recommendation}</span></p>
+                                <p><strong>Отзыв для кандидата:</strong> ${result.notification_text}</p>
+                            </div>
+                        </div>
+                    `;
+                    resultDiv.classList.remove('hidden');
+                } else {
+                    showError(result.detail || 'Неизвестная ошибка сервера.');
+                }
+            } catch (error) {
+                console.error('Ошибка анализа:', error);
+                showError(`Ошибка: ${error.message}`);
+            } finally {
+                // Скрываем индикатор
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = 'Анализировать резюме';
+                loadingIndicator.classList.add('hidden');
+            }
+        });
+
+        function showError(message) {
+            errorDiv.innerHTML = `<p class="text-red-300">${message}</p>`;
+            errorDiv.classList.remove('hidden');
+        }
+
+        // Инициализация
+        loadVacancies();
+    </script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Собеседование</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .pulse { animation: pulse-animation 1.5s infinite; }
+        @keyframes pulse-animation {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        #chat-box { scroll-behavior: smooth; }
+        .disabled-btn {
+            background-color: #4a5568 !important;
+            cursor: not-allowed !important;
+            transform: scale(1.0) !important;
+        }
+        .disabled-btn:hover { background-color: #4a5568 !important; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans">
+    <div class="container mx-auto p-4 md:p-8 max-w-3xl">
+
+        <!-- ЭКРАН ВЫБОРА ВАКАНСИИ -->
+        <div id="selection-screen">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-white">AI Интервьюер</h1>
+                <p class="text-lg text-gray-400 mt-2">Готовы проверить свои навыки?</p>
+            </header>
+            <main class="flex flex-col items-center space-y-6 bg-gray-800 p-8 rounded-lg border border-gray-700">
+                <label for="vacancy-select" class="text-xl font-semibold">Выберите вакансию:</label>
+                <select id="vacancy-select" class="bg-gray-700 border border-gray-600 text-white text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-md p-2.5">
+                    <option value="junior">Junior Developer</option>
+                    <option value="frontend" selected>Frontend Developer</option>
+                    <option value="backend">Backend Developer</option>
+                    <option value="fullstack">Fullstack Developer</option>
+                    <option value="middle">Middle Developer</option>
+                    <option value="senior">Senior Developer</option>
+                </select>
+                <button id="start-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 text-lg rounded-full transition-all duration-300 transform hover:scale-105">
+                    Начать собеседование
+                </button>
+            </main>
+        </div>
+
+        <!-- ОСНОВНОЙ ЭКРАН ИНТЕРВЬЮ (СКРЫТ) -->
+        <div id="interview-screen" class="hidden">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-white">AI Интервьюер</h1>
+                <p id="interview-subtitle" class="text-lg text-gray-400">Собеседование на позицию: ...</p>
+            </header>
+            <main>
+                <div id="chat-box" class="bg-gray-800 rounded-lg p-4 h-96 overflow-y-auto space-y-4 mb-6 border border-gray-700"></div>
+                <div class="flex flex-col items-center space-y-6">
+                    <div id="status" class="text-gray-400 h-6">Нажмите на микрофон, чтобы начать</div>
+                    <button id="record-btn" class="w-24 h-24 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out transform hover:scale-110 focus:outline-none">
+                        <svg id="mic-icon" class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4zM4 10a1 1 0 00-2 0v1a8 8 0 007 7.93V20H8a1 1 0 000 2h4a1 1 0 000-2h-1v-1.07A8 8 0 0018 11v-1a1 1 0 00-2 0v1a6 6 0 01-12 0v-1z"/></svg>
+                        <svg id="stop-icon" class="w-8 h-8 text-white hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 5a1 1 0 011-1h8a1 1 0 011 1v8a1 1 0 01-1 1H6a1 1 0 01-1-1V5z" clip-rule="evenodd" /></svg>
+                    </button>
+                    <button id="finish-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full transition-all duration-300 opacity-0 cursor-default" disabled>
+                        Завершить собеседование
+                    </button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // --- Элементы UI ---
+        const selectionScreen = document.getElementById('selection-screen');
+        const interviewScreen = document.getElementById('interview-screen');
+        const startBtn = document.getElementById('start-btn');
+        const vacancySelect = document.getElementById('vacancy-select');
+        const interviewSubtitle = document.getElementById('interview-subtitle');
+        const recordBtn = document.getElementById('record-btn');
+        const finishBtn = document.getElementById('finish-btn');
+        const chatBox = document.getElementById('chat-box');
+        const statusEl = document.getElementById('status');
+        const micIcon = document.getElementById('mic-icon');
+        const stopIcon = document.getElementById('stop-icon');
+
+        const botAvatar = `
+            <div class="w-10 h-10 rounded-full bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 01-2.07-.654.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654zM10 11a6 6 0 00-4.545 2.016.78.78 0 01-.358.442 3 3 0 01-4.308 3.516A6.484 6.484 0 0010 18a6.484 6.484 0 009.213-3.024 3 3 0 01-4.308-3.516A.78.78 0 0114.545 13.016 6 6 0 0010 11z"/></svg>
+            </div>`;
+        const userAvatar = `
+            <div class="w-10 h-10 rounded-full bg-blue-800 flex-shrink-0 flex items-center justify-center">
+                <svg class="w-6 h-6 text-blue-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+            </div>`;
+
+        // --- Аудио-плеер ---
+        const SAMPLE_RATE = 24000;
+        let audioContext;
+        let audioQueue = [];
+        let isPlayerLoopRunning = false;
+        let nextStartTime = 0;
+
+        function initAudioContext() {
+            if (audioContext && audioContext.state === 'running') return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+            if (audioContext.state === 'suspended') audioContext.resume();
+        }
+
+        function handleAudioChunk(float32Array) {
+            audioQueue.push(float32Array);
+            if (!isPlayerLoopRunning) startPlayerLoop();
+        }
+        
+        function startPlayerLoop() {
+            isPlayerLoopRunning = true;
+            const processQueue = () => {
+                if (audioQueue.length === 0) { isPlayerLoopRunning = false; return; }
+                const chunkToPlay = audioQueue.shift();
+                const audioBuffer = audioContext.createBuffer(1, chunkToPlay.length, SAMPLE_RATE);
+                audioBuffer.getChannelData(0).set(chunkToPlay);
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+                const currentTime = audioContext.currentTime;
+                if (nextStartTime < currentTime) nextStartTime = currentTime;
+                source.start(nextStartTime);
+                nextStartTime += audioBuffer.duration;
+                setTimeout(processQueue, 50);
+            };
+            processQueue();
+        }
+
+        // --- Логика WebSocket и записи ---
+        let socket;
+        let isRecording = false;
+        let mediaRecorder;
+        let audioChunks = [];
+
+        function connectWebSocket(vacancyKey) {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws?vacancy=${vacancyKey}`;
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                statusEl.textContent = 'Подключено. Жду приветствия...';
+                recordBtn.disabled = true;
+                recordBtn.classList.add('disabled-btn');
+            };
+
+            socket.onmessage = async (event) => {
+                if (event.data instanceof Blob) {
+                    const arrayBuffer = await event.data.arrayBuffer();
+                    handleAudioChunk(new Float32Array(arrayBuffer));
+                } else {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'text') {
+                        addMessage(msg.sender, msg.data);
+                    } else if (msg.type === 'audio_end') {
+                        statusEl.textContent = 'Ваша очередь говорить';
+                        recordBtn.disabled = false;
+                        // <-- ИСПРАВЛЕНИЕ ЗДЕСЬ -->
+                        recordBtn.classList.remove('disabled-btn');
+                        recordBtn.classList.add('bg-blue-600', 'hover:bg-blue-700'); // Явно возвращаем синий цвет
+                        // <-- КОНЕЦ ИСПРАВЛЕНИЯ -->
+                        
+                        finishBtn.disabled = false;
+                        finishBtn.classList.remove('opacity-0', 'cursor-default', 'disabled-btn');
+                        finishBtn.classList.add('opacity-100');
+                    }
+                }
+            };
+
+            socket.onclose = (event) => {
+                statusEl.textContent = 'Собеседование завершено. Можете закрыть страницу.';
+                recordBtn.disabled = true;
+                finishBtn.disabled = true;
+                recordBtn.classList.add('disabled-btn');
+                finishBtn.classList.add('disabled-btn');
+                recordBtn.classList.remove('pulse');
+            };
+
+            socket.onerror = (error) => {
+                statusEl.textContent = 'Ошибка соединения.';
+            };
+        }
+        
+        function addMessage(sender, text) {
+            const messageContainer = document.createElement('div');
+            messageContainer.classList.add('flex', 'items-start', 'space-x-3', 'max-w-xl');
+            const contentDiv = document.createElement('div');
+            contentDiv.textContent = text;
+            contentDiv.classList.add('px-4', 'py-2', 'rounded-lg', 'break-words');
+            if (sender === 'user') {
+                messageContainer.classList.add('ml-auto', 'flex-row-reverse', 'space-x-reverse');
+                contentDiv.classList.add('bg-blue-600', 'text-white');
+                messageContainer.innerHTML = userAvatar;
+            } else {
+                contentDiv.classList.add('bg-gray-700', 'text-gray-200');
+                messageContainer.innerHTML = botAvatar;
+            }
+            messageContainer.appendChild(contentDiv);
+            chatBox.appendChild(messageContainer);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    if (socket && socket.readyState === WebSocket.OPEN) socket.send(audioBlob);
+                    audioChunks = [];
+                };
+                mediaRecorder.start();
+                isRecording = true;
+                statusEl.textContent = 'Говорите...';
+                micIcon.classList.add('hidden');
+                stopIcon.classList.remove('hidden');
+                recordBtn.classList.add('bg-red-600', 'hover:bg-red-700', 'pulse');
+                recordBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                finishBtn.disabled = true;
+                finishBtn.classList.add('disabled-btn');
+            } catch (err) {
+                statusEl.textContent = 'Не удалось получить доступ к микрофону.';
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+                isRecording = false;
+                statusEl.textContent = 'Обработка вашего ответа...';
+                stopIcon.classList.add('hidden');
+                micIcon.classList.remove('hidden');
+                recordBtn.disabled = true;
+                recordBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'pulse');
+                recordBtn.classList.add('disabled-btn'); // Этот класс делает кнопку серой
+                finishBtn.disabled = true;
+            }
+        }
+        
+        startBtn.addEventListener('click', () => {
+            const selectedVacancyKey = vacancySelect.value;
+            const selectedVacancyText = vacancySelect.options[vacancySelect.selectedIndex].text;
+            interviewSubtitle.textContent = `Собеседование на позицию: ${selectedVacancyText}`;
+            selectionScreen.classList.add('hidden');
+            interviewScreen.classList.remove('hidden');
+            initAudioContext();
+            connectWebSocket(selectedVacancyKey);
+        });
+        
+        recordBtn.addEventListener('click', () => {
+            if (recordBtn.disabled || !socket) return;
+            if (!isRecording) startRecording();
+            else stopRecording();
+        });
+
+        finishBtn.addEventListener('click', () => {
+            if (finishBtn.disabled || !socket || socket.readyState !== WebSocket.OPEN) return;
+            socket.send(JSON.stringify({ type: 'end_interview' }));
+            statusEl.textContent = 'Завершение собеседования...';
+            recordBtn.disabled = true;
+            finishBtn.disabled = true;
+            recordBtn.classList.add('disabled-btn');
+            finishBtn.classList.add('disabled-btn');
+        });
+    </script>
+</body>
+</html>

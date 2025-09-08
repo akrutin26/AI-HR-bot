@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель: Сценарии</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans">
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white">Панель управления сценариями</h1>
+            <p class="text-lg text-gray-400 mt-2">Создавайте и редактируйте сценарии собеседований</p>
+        </header>
+
+        <div class="flex flex-col md:flex-row gap-8">
+            <!-- Левая колонка: Список вакансий -->
+            <aside class="w-full md:w-1/3 bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <h2 class="text-2xl font-semibold mb-4">Сценарии</h2>
+                <button id="create-new-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mb-4 transition-colors">
+                    + Создать новый
+                </button>
+                <ul id="vacancy-list" class="space-y-2">
+                    <!-- Список будет загружен сюда -->
+                </ul>
+            </aside>
+
+            <!-- Правая колонка: Форма редактирования -->
+            <main class="w-full md:w-2/3 bg-gray-800 p-6 rounded-lg border border-gray-700 hidden" id="edit-form-container">
+                <form id="edit-form">
+                    <input type="hidden" id="original-vacancy-key">
+                    
+                    <div class="mb-4">
+                        <label for="vacancy-key" class="block text-lg font-medium text-gray-300">Ключ вакансии (латиницей, без пробелов)</label>
+                        <input type="text" id="vacancy-key" name="key" required pattern="^[a-zA-Z0-9_-]+$" class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="vacancy-title" class="block text-lg font-medium text-gray-300">Название вакансии</label>
+                        <input type="text" id="vacancy-title" name="title" required class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="vacancy-requirements" class="block text-lg font-medium text-gray-300">Требования к вакансии</label>
+                        <textarea id="vacancy-requirements" name="requirements" rows="4" class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="vacancy-criteria-weights" class="block text-lg font-medium text-gray-300">Веса критериев (JSON, например: {"technical_skills": 50, "communication": 30, "cases": 20})</label>
+                        <textarea id="vacancy-criteria-weights" name="criteria_weights" rows="3" class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-lg font-medium text-gray-300">Вопросы</label>
+                        <div id="question-list" class="mt-2 space-y-2">
+                            <!-- Вопросы будут добавлены сюда -->
+                        </div>
+                        <div class="flex mt-3 gap-2">
+                            <input type="text" id="new-question-input" placeholder="Введите новый вопрос..." class="flex-grow bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            <button type="button" id="add-question-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-colors">Добавить</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label for="vacancy-script" class="block text-lg font-medium text-gray-300">Сценарий / План для AI</label>
+                        <textarea id="vacancy-script" name="script" rows="4" required class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+
+                    <div id="status-message" class="mb-4 p-3 rounded-lg text-center hidden"></div>
+
+                    <div class="flex justify-between items-center">
+                        <button type="button" id="delete-btn" class="bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-lg transition-colors hidden">
+                            Удалить
+                        </button>
+                        <button type="submit" id="save-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 text-lg rounded-full transition-colors">
+                            Сохранить
+                        </button>
+                    </div>
+                </form>
+            </main>
+        </div>
+    </div>
+
+<script>
+    const vacancyList = document.getElementById('vacancy-list');
+    const formContainer = document.getElementById('edit-form-container');
+    const editForm = document.getElementById('edit-form');
+    const createNewBtn = document.getElementById('create-new-btn');
+    const deleteBtn = document.getElementById('delete-btn');
+    const addQuestionBtn = document.getElementById('add-question-btn');
+    const newQuestionInput = document.getElementById('new-question-input');
+    const questionListContainer = document.getElementById('question-list');
+    const statusMessage = document.getElementById('status-message');
+    
+    let currentEditingKey = null;
+
+    // --- API Функции ---
+    
+    async function apiFetch(url, options = {}) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Ошибка HTTP: ${response.status}`);
+        }
+        return response.json();
+    }
+
+    // --- Логика UI ---
+
+    function showStatus(message, isError = false) {
+        statusMessage.textContent = message;
+        statusMessage.className = `mb-4 p-3 rounded-lg text-center text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+        setTimeout(() => { statusMessage.className += ' hidden'; }, 3000);
+    }
+
+    function addQuestionToList(questionText) {
+        const div = document.createElement('div');
+        div.className = 'flex items-center gap-2 bg-gray-900 p-2 rounded';
+        div.innerHTML = `
+            <span class="flex-grow text-gray-300">${questionText}</span>
+            <button type="button" class="remove-question-btn text-red-500 hover:text-red-400 font-bold text-xl">&times;</button>
+        `;
+        div.querySelector('.remove-question-btn').addEventListener('click', () => div.remove());
+        questionListContainer.appendChild(div);
+    }
+
+    function populateForm(data) {
+        document.getElementById('original-vacancy-key').value = data.key;
+        document.getElementById('vacancy-key').value = data.key;
+        document.getElementById('vacancy-title').value = data.title;
+        document.getElementById('vacancy-requirements').value = data.requirements || '';
+        document.getElementById('vacancy-criteria-weights').value = data.criteria_weights || '{}';
+        document.getElementById('vacancy-script').value = data.script;
+        
+        questionListContainer.innerHTML = '';
+        data.questions.forEach(addQuestionToList);
+
+        document.getElementById('vacancy-key').readOnly = true;
+        deleteBtn.classList.remove('hidden');
+        formContainer.classList.remove('hidden');
+        currentEditingKey = data.key;
+    }
+
+    function clearForm() {
+        editForm.reset();
+        questionListContainer.innerHTML = '';
+        document.getElementById('original-vacancy-key').value = '';
+        document.getElementById('vacancy-key').readOnly = false;
+        document.getElementById('vacancy-criteria-weights').value = '{}';
+        deleteBtn.classList.add('hidden');
+        formContainer.classList.remove('hidden');
+        currentEditingKey = null;
+        document.getElementById('vacancy-key').focus();
+    }
+
+    async function loadVacancyList() {
+        try {
+            const vacancies = await apiFetch('/api/vacancies');
+            vacancyList.innerHTML = '';
+            vacancies.forEach(v => {
+                const li = document.createElement('li');
+                li.className = 'text-lg text-white bg-gray-700 hover:bg-gray-600 rounded-md p-3 cursor-pointer transition-colors';
+                li.textContent = v.title;
+                li.dataset.key = v.key;
+                li.addEventListener('click', async () => {
+                    const fullData = await apiFetch(`/api/vacancies/${v.key}`);
+                    populateForm({ key: v.key, ...fullData });
+                    // Подсветка активного элемента
+                    document.querySelectorAll('#vacancy-list li').forEach(item => item.classList.remove('bg-blue-600'));
+                    li.classList.add('bg-blue-600');
+                });
+                vacancyList.appendChild(li);
+            });
+        } catch (error) {
+            showStatus(`Не удалось загрузить список вакансий: ${error.message}`, true);
+        }
+    }
+
+    // --- Обработчики событий ---
+
+    createNewBtn.addEventListener('click', clearForm);
+
+    addQuestionBtn.addEventListener('click', () => {
+        const questionText = newQuestionInput.value.trim();
+        if (questionText) {
+            addQuestionToList(questionText);
+            newQuestionInput.value = '';
+        }
+        newQuestionInput.focus();
+    });
+    
+    newQuestionInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addQuestionBtn.click();
+        }
+    });
+
+    editForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const key = document.getElementById('vacancy-key').value.trim();
+        if (!key) {
+            showStatus('Ключ вакансии не может быть пустым', true);
+            return;
+        }
+
+        const criteriaWeights = document.getElementById('vacancy-criteria-weights').value.trim();
+        try {
+            JSON.parse(criteriaWeights); // Проверяем валидность JSON
+        } catch {
+            showStatus('Веса критериев должны быть валидным JSON', true);
+            return;
+        }
+
+        const questions = Array.from(questionListContainer.querySelectorAll('span')).map(span => span.textContent);
+        
+        const payload = {
+            title: document.getElementById('vacancy-title').value,
+            requirements: document.getElementById('vacancy-requirements').value,
+            questions: questions,
+            script: document.getElementById('vacancy-script').value,
+            criteria_weights: criteriaWeights
+        };
+
+        try {
+            let result;
+            if (currentEditingKey) { // Обновление
+                result = await apiFetch(`/api/vacancies/${currentEditingKey}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, ...payload }) // Отправляем новый ключ, если он изменился
+                });
+            } else { // Создание
+                result = await apiFetch(`/api/vacancies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, ...payload })
+                });
+            }
+            showStatus(result.message, false);
+            await loadVacancyList();
+            // После сохранения переключаемся на отредактированный элемент
+            const newLi = document.querySelector(`#vacancy-list li[data-key="${key}"]`);
+            if (newLi) newLi.click();
+        } catch (error) {
+            showStatus(`Ошибка сохранения: ${error.message}`, true);
+        }
+    });
+    
+    deleteBtn.addEventListener('click', async () => {
+        if (!currentEditingKey) return;
+        
+        if (confirm(`Вы уверены, что хотите удалить сценарий "${currentEditingKey}"?`)) {
+            try {
+                const result = await apiFetch(`/api/vacancies/${currentEditingKey}`, { method: 'DELETE' });
+                showStatus(result.message, false);
+                formContainer.classList.add('hidden');
+                currentEditingKey = null;
+                await loadVacancyList();
+            } catch (error) {
+                showStatus(`Ошибка удаления: ${error.message}`, true);
+            }
+        }
+    });
+
+    // --- Инициализация ---
+    loadVacancyList();
+</script>
+</body>
+</html>

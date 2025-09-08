@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Архив Собеседований</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans">
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white">Архив Собеседований</h1>
+            <p class="text-lg text-gray-400 mt-2">Просмотрите сохраненные отчеты</p>
+        </header>
+
+        <div class="flex flex-col md:flex-row gap-8">
+            <!-- Левая колонка: Список отчетов -->
+            <aside id="report-list-container" class="w-full md:w-1/3 bg-gray-800 p-6 rounded-lg border border-gray-700 h-full md:h-[70vh] overflow-y-auto">
+                <h2 class="text-2xl font-semibold mb-4">Отчеты</h2>
+                <ul id="report-list" class="space-y-2">
+                    <!-- Список будет загружен сюда -->
+                </ul>
+            </aside>
+
+            <!-- Правая колонка: Содержимое отчета -->
+            <main id="report-content-container" class="w-full md:w-2/3 bg-gray-800 p-6 rounded-lg border border-gray-700 hidden">
+                <div id="report-metadata" class="mb-6 border-b border-gray-600 pb-4">
+                    <!-- Метаданные отчета -->
+                </div>
+                <button id="generate-report-btn" class="mb-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Сформировать отчёт</button>
+                <div id="final-report" class="hidden mb-6 p-4 bg-gray-900 rounded-md border border-gray-600">
+                    <!-- Финальный отчёт -->
+                </div>
+                <div id="notification-container" class="hidden mb-6 p-4 bg-gray-900 rounded-md border border-gray-600">
+                    <!-- Уведомление -->
+                </div>
+                <div id="report-dialogue" class="space-y-4 font-mono text-sm">
+                    <!-- Диалог и анализ -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const reportListEl = document.getElementById('report-list');
+        const reportContentContainerEl = document.getElementById('report-content-container');
+        const reportMetadataEl = document.getElementById('report-metadata');
+        const reportDialogueEl = document.getElementById('report-dialogue');
+        const generateReportBtn = document.getElementById('generate-report-btn');
+        const finalReportEl = document.getElementById('final-report');
+        const notificationContainerEl = document.getElementById('notification-container');
+        let activeItem = null;
+        let currentReportId = null;
+
+        async function loadReportList() {
+            try {
+                const response = await fetch('/api/reports');
+                const reports = await response.json();
+                reportListEl.innerHTML = ''; // Очищаем список
+
+                if (reports.length === 0) {
+                    reportListEl.innerHTML = '<li class="text-gray-400">Сохраненных отчетов нет.</li>';
+                    return;
+                }
+
+                reports.sort((a, b) => new Date(b.date) - new Date(a.date)); // Сортируем по дате, новые сверху
+
+                reports.forEach(report => {
+                    const li = document.createElement('li');
+                    li.className = 'bg-gray-700 hover:bg-gray-600 rounded-md p-3 cursor-pointer transition-colors';
+                    li.dataset.id = report.id;
+                    li.innerHTML = `
+                        <p class="font-bold text-white">${report.title}</p>
+                        <p class="text-sm text-gray-400">${new Date(report.date).toLocaleString('ru-RU')}</p>
+                    `;
+                    li.addEventListener('click', () => loadReportContent(report.id, li));
+                    reportListEl.appendChild(li);
+                });
+            } catch (error) {
+                reportListEl.innerHTML = `<li class="text-red-400">Ошибка загрузки списка отчетов.</li>`;
+                console.error(error);
+            }
+        }
+
+        async function loadReportContent(reportId, listItem) {
+            reportContentContainerEl.classList.remove('hidden');
+            reportMetadataEl.innerHTML = '<p>Загрузка...</p>';
+            reportDialogueEl.innerHTML = '';
+            finalReportEl.classList.add('hidden');
+            notificationContainerEl.classList.add('hidden');
+            currentReportId = reportId;
+
+            if (activeItem) {
+                activeItem.classList.remove('bg-blue-600');
+            }
+            listItem.classList.add('bg-blue-600');
+            activeItem = listItem;
+
+            try {
+                const response = await fetch(`/api/reports/${reportId}`);
+                const report = await response.json();
+                
+                reportMetadataEl.innerHTML = `
+                    <h2 class="text-2xl font-bold text-white">${report.vacancy_title}</h2>
+                    <p class="text-gray-400">ID: ${report.interview_id}</p>
+                    <p class="text-gray-400">Дата: ${new Date(report.date).toLocaleString('ru-RU')}</p>
+                `;
+                
+                reportDialogueEl.innerHTML = ''; // Очищаем перед заполнением
+                report.dialogue.forEach(turn => {
+                    const turnDiv = document.createElement('div');
+                    turnDiv.className = 'p-3 rounded-md bg-gray-900/50';
+                    let dialogueHtml = '';
+
+                    // Добавляем сообщение ассистента, если оно есть
+                    if (turn.assistant_text) {
+                        dialogueHtml += `
+                            <div class="mb-2 p-2 bg-blue-900/30 rounded-md">
+                                <p class="text-blue-300"><strong class="text-white">Ассистент:</strong> ${turn.assistant_text}</p>
+                            </div>
+                        `;
+                    }
+
+                    // Добавляем сообщение кандидата, если оно есть
+                    if (turn.user_text) {
+                        dialogueHtml += `
+                            <div class="p-2 bg-green-900/30 rounded-md">
+                                <p class="text-green-300"><strong class="text-white">Кандидат:</strong> ${turn.user_text}</p>
+                            </div>
+                        `;
+                    }
+
+                    // Добавляем анализ, если есть хотя бы одно из полей анализа
+                    if (turn.emotion || turn.structure_analysis || turn.internal_analysis) {
+                        dialogueHtml += `
+                            <div class="mt-2 p-2 border-l-2 border-gray-500 bg-gray-800/50">
+                                <p class="text-gray-300"><strong class="text-white">[АНАЛИЗ]:</strong></p>
+                                ${turn.emotion ? `<p class="text-gray-300">Эмоция: ${turn.emotion}</p>` : ''}
+                                ${turn.structure_analysis ? `<p class="text-gray-300">Структура ответа: ${turn.structure_analysis}</p>` : ''}
+                                ${turn.pauses_info ? `<p class="text-gray-300">Паузы в речи: ${turn.pauses_info}</p>` : ''}
+                                ${turn.internal_analysis ? `<p class="text-gray-300">Внутренний анализ: ${turn.internal_analysis}</p>` : ''}
+                            </div>
+                        `;
+                    }
+
+                    turnDiv.innerHTML = dialogueHtml;
+                    reportDialogueEl.appendChild(turnDiv);
+                });
+
+                // Если финальный отчёт уже сгенерирован, отображаем его
+                if (report.final_report) {
+                    showFinalReport(report.final_report);
+                }
+
+            } catch (error) {
+                reportMetadataEl.innerHTML = `<p class="text-red-400">Ошибка загрузки отчета.</p>`;
+                console.error(error);
+            }
+        }
+
+        async function generateReport() {
+            if (!currentReportId) return;
+            try {
+                const response = await fetch(`/api/reports/${currentReportId}/generate`, { method: 'POST' });
+                const finalReport = await response.json();
+                showFinalReport(finalReport);
+            } catch (error) {
+                finalReportEl.innerHTML = `<p class="text-red-400">Ошибка генерации отчёта.</p>`;
+                console.error(error);
+            }
+        }
+
+        function showFinalReport(finalReport) {
+            finalReportEl.innerHTML = `
+                <h3 class="text-xl font-bold text-white">Финальный отчёт</h3>
+                <p class="text-gray-300">Процент соответствия: ${finalReport.match_percentage}%</p>
+                <p class="text-gray-300">Разбивка по компетенциям: ${finalReport.competencies_breakdown}</p>
+                <p class="text-gray-300">Рекомендация: ${finalReport.recommendation}</p>
+                <button id="generate-notification-btn" class="mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-3 rounded">Сгенерировать уведомление</button>
+            `;
+            finalReportEl.classList.remove('hidden');
+
+            document.getElementById('generate-notification-btn').addEventListener('click', () => {
+                notificationContainerEl.innerHTML = `
+                    <h3 class="text-xl font-bold text-white">Уведомление для кандидата</h3>
+                    <p class="text-gray-300">${finalReport.notification_text}</p>
+                `;
+                notificationContainerEl.classList.remove('hidden');
+            });
+        }
+
+        generateReportBtn.addEventListener('click', generateReport);
+
+        loadReportList();
+    </script>
+</body>
+</html>
