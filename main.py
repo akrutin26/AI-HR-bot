@@ -90,15 +90,15 @@ print("Загрузка AI моделей...")
 # 1. TTS Model
 print("Загрузка модели TTS (XTTS v2)...")
 tts_config = XttsConfig()
-tts_config.load_json("../tts/tts_models--multilingual--multi-dataset--xtts_v2/config.json")
+tts_config.load_json("tts/tts_models--multilingual--multi-dataset--xtts_v2/config.json")
 tts_model = Xtts.init_from_config(tts_config)
-tts_model.load_checkpoint(tts_config, checkpoint_dir="../tts/tts_models--multilingual--multi-dataset--xtts_v2/", use_deepspeed=True)
+tts_model.load_checkpoint(tts_config, checkpoint_dir="tts/tts_models--multilingual--multi-dataset--xtts_v2/", use_deepspeed=True)
 tts_model.cuda()
 speaker_name = "Luis Moray"
 gpt_cond_latent, speaker_embedding = tts_model.speaker_manager.speakers[speaker_name].values()
 
 # 2. LLM Model
-print("Загрузка LLM (OpenAI)...")
+print("Загрузка LLM (OpenAI)...") 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 llm = ChatOpenAI(openai_api_key=OPENAI_API_KEY, openai_api_base="https://api.proxyapi.ru/openai/v1", model_name="gpt-4o-mini", temperature=0.7)
