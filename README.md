@@ -170,13 +170,13 @@ uvicorn main:app --reload
 
 
 ### Видео-демо 
-- **Ссылка**: [Видео-демо на Яндекс Диске](https://disk.yandex.ru/d/demo-video](https://disk.360.yandex.ru/i/95GQpwbCbVQ3BA))
+- **Ссылка**: [Видео-демо на Яндекс Диске](https://disk.360.yandex.ru/i/95GQpwbCbVQ3BA)
 
 ### Презентация (PDF)
-- **Ссылка**: [Презентация PDF на Яндекс Диске](https://disk.yandex.ru/d/presentation-pdf](https://disk.360.yandex.ru/i/-CMFBXTyOe4Wrg))
+- **Ссылка**: [Презентация PDF на Яндекс Диске](https://disk.360.yandex.ru/i/-CMFBXTyOe4Wrg)
 
 ### Ссылка на скачивание полного проекта
-- **Ссылка**: [Полный проект на Яндекс Диске (без venv)]([https://disk.yandex.ru/d/full-project-zip](https://disk.360.yandex.ru/d/yfMorkklpsbPUQ))
+- **Ссылка**: [Полный проект на Яндекс Диске (без venv)](https://disk.360.yandex.ru/d/yfMorkklpsbPUQ)
 
 ## Дополнительные замечания
 - Убедитесь, что драйверы вашей видеокарты NVIDIA обновлены до последней версии, совместимой с CUDA 12.1.
