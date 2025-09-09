@@ -36,7 +36,7 @@ cd AI-HR-bot
 Создайте виртуальное окружение для изоляции зависимостей проекта:
 
 ```bash
-python -m venv venv
+py -3.11 -m venv myenv311
 ```
 
 ### 3. Активация виртуального окружения
@@ -56,7 +56,7 @@ python -m venv venv
 Установите все необходимые зависимости, указанные в файле `requirements.txt`:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
 ```
 
 ### 5. Установка DeepSpeed
